@@ -9,14 +9,16 @@
 ![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
 
 <p align="center">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&pause=1000&color=F05138&center=true&width=435&lines=Track+incidents+in+real+time;Analyze+resolution+metrics;Export+to+CSV+and+PDF" alt="Typing SVG" />
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&pause=1000&color=F05138&center=true&width=435&lines=Open+incidents+in+seconds;Track+every+update+in+real+time;Export+postmortems+as+Markdown" alt="Typing SVG" />
 </p>
 
 ---
 
 ## 📱 About
 
-**Incident Log** is a native iOS app for support analysts and developers who need to register, track and measure incidents with precision. Log an incident in seconds, mark it as resolved, and let the dashboard show you where time is being spent.
+**Incident Log** is a native iOS app for support analysts and developers who need to register, track and document incidents with precision.
+
+Open an incident, add timeline updates as the situation evolves, fill in the postmortem — and export a structured Markdown report when it's done.
 
 Born from a real need — built by someone who lived this pain daily as a Senior Support Analyst.
 
@@ -24,16 +26,31 @@ Born from a real need — built by someone who lived this pain daily as a Senior
 
 ## ✨ Features
 
-- **Register incidents** with title, description, tags and automatic timestamp
-- **Track status** — Open, In Progress, Resolved
-- **Timeline view** showing exact open and resolution times
-- **Resolution time** calculated and displayed automatically
+- **Open incidents** with title, description, affected teams and tags
+- **Automatic timeline** — starts at the moment of opening, updated with each new entry
+- **Add updates** to the timeline with automatic timestamp as the incident evolves
+- **Status tracking** — Open → In Progress (on first update) → Resolved
+- **Postmortem built-in** — root cause, lessons learned and action plan filled gradually
+- **Close flow with validation** — the app requires a complete postmortem before closing
+- **Action plan** with short and long term actions, responsible and deadline
+- **Export postmortem as Markdown** — structured `.md` file ready to share or store
 - **Dashboard** with two Swift Charts:
   - Average resolution time per tag
   - Incident count per tag
 - **Filter and search** by tag, status or keyword
-- **Export** your data as CSV or PDF and share via native share sheet
 - **Full offline support** — all data stored locally with SwiftData
+
+---
+
+## 🔄 Incident Lifecycle
+
+```
+Open          →        In Progress       →       Resolved
+(creation)         (first update added)      (postmortem complete)
+    │                      │                        │
+Timeline          Timeline updates            Markdown export
+auto-starts       with timestamps             available
+```
 
 ---
 
@@ -42,9 +59,9 @@ Born from a real need — built by someone who lived this pain daily as a Senior
 | Technology | Usage |
 |---|---|
 | SwiftUI | All screens and UI components |
-| SwiftData | Local persistence |
+| SwiftData | Local persistence with relationships |
 | Swift Charts | Dashboard graphs |
-| PDFKit | PDF export |
+| ShareLink + PDFKit | Postmortem export |
 | MVVM | Architecture pattern |
 
 ---
@@ -62,7 +79,7 @@ Born from a real need — built by someone who lived this pain daily as a Senior
 ### 1. Clone the repository
 
 ```bash
-git clone git@github.com:SEU_USERNAME/incident-log.git
+git clone git@github.com:ecanalle/incident-log.git
 cd incident-log
 ```
 
@@ -86,20 +103,21 @@ No external dependencies or package installation needed. ✅
 ```
 Incident Log App/
 ├── App/
-│   ├── IncidentLogApp.swift      # Entry point, ModelContainer setup
-│   └── ContentView.swift         # Root TabView
+│   ├── IncidentLogApp.swift        # Entry point, ModelContainer setup
+│   └── ContentView.swift           # Root TabView
 ├── Models/
-│   └── Incident.swift            # SwiftData model, Severity, Status enums
+│   └── Incident.swift              # Incident, TimelineUpdate, ActionItem models
 ├── ViewModels/
-│   └── IncidentViewModel.swift   # @Observable, filters, CRUD, form state
+│   └── IncidentViewModel.swift     # @Observable, filters, CRUD, close validation
 ├── Views/
-│   ├── Home/                     # Incident list with search and tag filters
-│   ├── NewIncident/              # New incident form sheet
-│   ├── Detail/                   # Incident detail, timeline and edit
-│   ├── Dashboard/                # Swift Charts metrics
-│   └── Export/                   # CSV/PDF export and ShareSheet
+│   ├── Home/                       # Incident list with search and tag filters
+│   ├── NewIncident/                # Opening form — title, teams, tags, severity
+│   ├── Detail/                     # Timeline, postmortem fields, close flow
+│   ├── Dashboard/                  # Swift Charts metrics
+│   └── Export/                     # CSV/PDF export and ShareSheet
 └── Utilities/
-    └── PreviewData.swift         # In-memory sample data for Xcode Previews
+    ├── PreviewData.swift            # In-memory sample data for Xcode Previews
+    └── PostmortemExporter.swift     # Markdown postmortem generator
 ```
 
 ---
