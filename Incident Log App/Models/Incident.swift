@@ -38,7 +38,50 @@ enum IncidentStatus: String, Codable {
     case resolved   = "Resolvido"
 }
 
-// MARK: - Incident Model
+// MARK: - ActionItem
+
+@Model
+final class ActionItem {
+    var id: UUID
+    var title: String
+    var responsible: String
+    var deadline: Date?
+    var isCompleted: Bool
+    var isLongTerm: Bool
+
+    init(
+        title: String,
+        responsible: String = "",
+        deadline: Date? = nil,
+        isLongTerm: Bool = false
+    ) {
+        self.id          = UUID()
+        self.title       = title
+        self.responsible = responsible
+        self.deadline    = deadline
+        self.isCompleted = false
+        self.isLongTerm  = isLongTerm
+    }
+}
+
+// MARK: - TimelineEvent
+
+@Model
+final class TimelineEvent {
+    var id: UUID
+    var label: String
+    var timestamp: Date
+    var order: Int
+
+    init(label: String, timestamp: Date, order: Int) {
+        self.id        = UUID()
+        self.label     = label
+        self.timestamp = timestamp
+        self.order     = order
+    }
+}
+
+// MARK: - Incident
 
 @Model
 final class Incident {
@@ -53,33 +96,47 @@ final class Incident {
     var resolvedAt: Date?
     var notes: String
 
+    // MARK: Postmortem
+    var rootCause: String
+    var lessonsLearned: String
+    var affectedTeams: String
+
+    @Relationship(deleteRule: .cascade) var actionItems: [ActionItem]
+    @Relationship(deleteRule: .cascade) var timeline: [TimelineEvent]
+
     init(
         title: String,
         body: String = "",
         severity: Severity = .p3,
         tags: [String] = [],
-        notes: String = ""
+        notes: String = "",
+        rootCause: String = "",
+        lessonsLearned: String = "",
+        affectedTeams: String = ""
     ) {
-        self.id         = UUID()
-        self.title      = title
-        self.body       = body
-        self.severity   = severity
-        self.status     = .open
-        self.tags       = tags
-        self.openedAt   = Date()
-        self.resolvedAt = nil
-        self.notes      = notes
+        self.id             = UUID()
+        self.title          = title
+        self.body           = body
+        self.severity       = severity
+        self.status         = .open
+        self.tags           = tags
+        self.openedAt       = Date()
+        self.resolvedAt     = nil
+        self.notes          = notes
+        self.rootCause      = rootCause
+        self.lessonsLearned = lessonsLearned
+        self.affectedTeams  = affectedTeams
+        self.actionItems    = []
+        self.timeline       = []
     }
 
     // MARK: - Computed
 
-    /// Tempo de resolução em segundos. Nil se ainda aberto.
     var resolutionTime: TimeInterval? {
         guard let resolved = resolvedAt else { return nil }
         return resolved.timeIntervalSince(openedAt)
     }
 
-    /// Tempo de resolução formatado (ex: "1h 23min")
     var resolutionTimeFormatted: String? {
         guard let seconds = resolutionTime else { return nil }
         let hours   = Int(seconds) / 3600
@@ -88,17 +145,30 @@ final class Incident {
         return "\(minutes)min"
     }
 
-    var isOpen: Bool { status != .resolved }
+    var isOpen: Bool          { status != .resolved }
+    var shortTermActions: [ActionItem] { actionItems.filter { !$0.isLongTerm }.sorted { !$0.isCompleted && $1.isCompleted } }
+    var longTermActions:  [ActionItem] { actionItems.filter {  $0.isLongTerm }.sorted { !$0.isCompleted && $1.isCompleted } }
+    var sortedTimeline:   [TimelineEvent] { timeline.sorted { $0.order < $1.order } }
 
     // MARK: - Actions
 
     func resolve() {
-        self.status     = .resolved
-        self.resolvedAt = Date()
+        status     = .resolved
+        resolvedAt = Date()
+        addTimelineEvent(label: "Resolvido", timestamp: Date(), order: timeline.count)
     }
 
     func reopen() {
-        self.status     = .open
-        self.resolvedAt = nil
+        status     = .open
+        resolvedAt = nil
+    }
+
+    func addTimelineEvent(label: String, timestamp: Date = Date(), order: Int? = nil) {
+        let event = TimelineEvent(
+            label: label,
+            timestamp: timestamp,
+            order: order ?? timeline.count
+        )
+        timeline.append(event)
     }
 }
