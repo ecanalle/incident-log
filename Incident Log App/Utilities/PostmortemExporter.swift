@@ -4,11 +4,10 @@ import Foundation
 
 enum PostmortemExporter {
 
-    /// Gera o postmortem em Markdown e retorna a URL do arquivo temporário.
     static func export(incident: Incident) -> URL? {
-        let md = buildMarkdown(incident: incident)
-        let filename = "\(slug(incident.title)).md"
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        let md  = buildMarkdown(incident: incident)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(slug(incident.title)).md")
         do {
             try md.write(to: url, atomically: true, encoding: .utf8)
             return url
@@ -35,57 +34,52 @@ enum PostmortemExporter {
         }
         md += "\n---\n\n"
 
-        // Resumo executivo
+        // Resumo
         if !incident.body.isEmpty {
-            md += "## Resumo Executivo\n\n"
-            md += "\(incident.body)\n\n"
+            md += "## Resumo Executivo\n\n\(incident.body)\n\n"
         }
 
         // Timeline
-        if !incident.sortedTimeline.isEmpty {
+        if !incident.sortedUpdates.isEmpty {
             md += "## Linha do Tempo\n\n"
             md += "| Evento | Horário |\n"
             md += "| :----- | :------ |\n"
-            for event in incident.sortedTimeline {
-                let time = event.timestamp.formatted(date: .omitted, time: .shortened)
-                md += "| \(event.label) | \(time) |\n"
+            for update in incident.sortedUpdates {
+                let time = update.timestamp.formatted(date: .omitted, time: .shortened)
+                md += "| \(update.text) | \(time) |\n"
             }
             if let duration = incident.resolutionTimeFormatted {
-                md += "| **Duração da indisponibilidade** | **\(duration)** |\n"
+                md += "| **Duração total** | **\(duration)** |\n"
             }
             md += "\n"
         }
 
         // Causa raiz
         if !incident.rootCause.isEmpty {
-            md += "## Análise da Causa Raiz\n\n"
-            md += "\(incident.rootCause)\n\n"
+            md += "## Análise da Causa Raiz\n\n\(incident.rootCause)\n\n"
         }
 
         // Plano de ação
-        let shortTerm = incident.shortTermActions
-        let longTerm  = incident.longTermActions
-
-        if !shortTerm.isEmpty || !longTerm.isEmpty {
+        let short = incident.shortTermActions
+        let long  = incident.longTermActions
+        if !short.isEmpty || !long.isEmpty {
             md += "## Plano de Ação\n\n"
-
-            if !shortTerm.isEmpty {
-                md += "### Ações de Curto Prazo\n\n"
-                for item in shortTerm {
+            if !short.isEmpty {
+                md += "### Curto Prazo\n\n"
+                for item in short {
                     let check    = item.isCompleted ? "x" : " "
-                    let deadline = item.deadline.map { " — Prazo: \($0.formatted(date: .abbreviated, time: .omitted))" } ?? ""
-                    let resp     = item.responsible.isEmpty ? "" : " — Responsável: \(item.responsible)"
+                    let resp     = item.responsible.isEmpty ? "" : " — \(item.responsible)"
+                    let deadline = item.deadline.map { " — \($0.formatted(date: .abbreviated, time: .omitted))" } ?? ""
                     md += "- [\(check)] \(item.title)\(resp)\(deadline)\n"
                 }
                 md += "\n"
             }
-
-            if !longTerm.isEmpty {
-                md += "### Ações de Longo Prazo\n\n"
-                for item in longTerm {
+            if !long.isEmpty {
+                md += "### Longo Prazo\n\n"
+                for item in long {
                     let check    = item.isCompleted ? "x" : " "
-                    let deadline = item.deadline.map { " — Prazo: \($0.formatted(date: .abbreviated, time: .omitted))" } ?? ""
-                    let resp     = item.responsible.isEmpty ? "" : " — Responsável: \(item.responsible)"
+                    let resp     = item.responsible.isEmpty ? "" : " — \(item.responsible)"
+                    let deadline = item.deadline.map { " — \($0.formatted(date: .abbreviated, time: .omitted))" } ?? ""
                     md += "- [\(check)] \(item.title)\(resp)\(deadline)\n"
                 }
                 md += "\n"
@@ -95,7 +89,6 @@ enum PostmortemExporter {
         // Lições aprendidas
         if !incident.lessonsLearned.isEmpty {
             md += "## Lições Aprendidas\n\n"
-            // Split by line breaks for numbered list
             let lessons = incident.lessonsLearned
                 .components(separatedBy: .newlines)
                 .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
@@ -107,8 +100,7 @@ enum PostmortemExporter {
 
         // Notas
         if !incident.notes.isEmpty {
-            md += "## Notas\n\n"
-            md += "\(incident.notes)\n\n"
+            md += "## Notas Internas\n\n\(incident.notes)\n\n"
         }
 
         // Footer
@@ -118,10 +110,8 @@ enum PostmortemExporter {
         return md
     }
 
-    // MARK: - Helpers
-
     private static func slug(_ title: String) -> String {
-        let date = Date().formatted(.iso8601.year().month().day())
+        let date  = Date().formatted(.iso8601.year().month().day())
         let clean = title
             .lowercased()
             .replacingOccurrences(of: " ", with: "-")

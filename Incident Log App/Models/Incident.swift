@@ -9,23 +9,21 @@ enum Severity: String, Codable, CaseIterable {
     case p3 = "P3"
     case p4 = "P4"
 
-    var label: String { rawValue }
-
-    var color: String {
-        switch self {
-        case .p1: return "red"
-        case .p2: return "orange"
-        case .p3: return "yellow"
-        case .p4: return "blue"
-        }
-    }
-
     var description: String {
         switch self {
         case .p1: return "Crítico — sistema fora do ar"
         case .p2: return "Alto — funcionalidade comprometida"
         case .p3: return "Médio — degradação parcial"
         case .p4: return "Baixo — impacto mínimo"
+        }
+    }
+
+    var colorName: String {
+        switch self {
+        case .p1: return "red"
+        case .p2: return "orange"
+        case .p3: return "yellow"
+        case .p4: return "blue"
         }
     }
 }
@@ -35,7 +33,24 @@ enum Severity: String, Codable, CaseIterable {
 enum IncidentStatus: String, Codable {
     case open       = "Aberto"
     case inProgress = "Em andamento"
-    case resolved   = "Resolvido"
+    case resolved   = "Encerrado"
+}
+
+// MARK: - TimelineUpdate
+
+@Model
+final class TimelineUpdate {
+    var id: UUID
+    var text: String = ""
+    var timestamp: Date = Date()
+    var order: Int = 0
+
+    init(text: String, order: Int) {
+        self.id        = UUID()
+        self.text      = text
+        self.timestamp = Date()
+        self.order     = order
+    }
 }
 
 // MARK: - ActionItem
@@ -43,11 +58,11 @@ enum IncidentStatus: String, Codable {
 @Model
 final class ActionItem {
     var id: UUID
-    var title: String
-    var responsible: String
+    var title: String = ""
+    var responsible: String = ""
     var deadline: Date?
-    var isCompleted: Bool
-    var isLongTerm: Bool
+    var isCompleted: Bool = false
+    var isLongTerm: Bool = false
 
     init(
         title: String,
@@ -64,54 +79,32 @@ final class ActionItem {
     }
 }
 
-// MARK: - TimelineEvent
-
-@Model
-final class TimelineEvent {
-    var id: UUID
-    var label: String
-    var timestamp: Date
-    var order: Int
-
-    init(label: String, timestamp: Date, order: Int) {
-        self.id        = UUID()
-        self.label     = label
-        self.timestamp = timestamp
-        self.order     = order
-    }
-}
-
 // MARK: - Incident
 
 @Model
 final class Incident {
 
     var id: UUID
-    var title: String
-    var body: String
-    var severity: Severity
-    var status: IncidentStatus
-    var tags: [String]
-    var openedAt: Date
+    var title: String = ""
+    var body: String = ""
+    var severity: Severity = Severity.p3
+    var status: IncidentStatus = IncidentStatus.open
+    var tags: [String] = []
+    var affectedTeams: String = ""
+    var openedAt: Date = Date()
     var resolvedAt: Date?
-    var notes: String
+    var rootCause: String = ""
+    var lessonsLearned: String = ""
+    var notes: String = ""
 
-    // MARK: Postmortem
-    var rootCause: String
-    var lessonsLearned: String
-    var affectedTeams: String
-
-    @Relationship(deleteRule: .cascade) var actionItems: [ActionItem]
-    @Relationship(deleteRule: .cascade) var timeline: [TimelineEvent]
+    @Relationship(deleteRule: .cascade) var updates: [TimelineUpdate] = []
+    @Relationship(deleteRule: .cascade) var actionItems: [ActionItem] = []
 
     init(
         title: String,
         body: String = "",
         severity: Severity = .p3,
         tags: [String] = [],
-        notes: String = "",
-        rootCause: String = "",
-        lessonsLearned: String = "",
         affectedTeams: String = ""
     ) {
         self.id             = UUID()
@@ -120,17 +113,19 @@ final class Incident {
         self.severity       = severity
         self.status         = .open
         self.tags           = tags
+        self.affectedTeams  = affectedTeams
         self.openedAt       = Date()
         self.resolvedAt     = nil
-        self.notes          = notes
-        self.rootCause      = rootCause
-        self.lessonsLearned = lessonsLearned
-        self.affectedTeams  = affectedTeams
+        self.rootCause      = ""
+        self.lessonsLearned = ""
+        self.notes          = ""
+        self.updates        = []
         self.actionItems    = []
-        self.timeline       = []
     }
 
     // MARK: - Computed
+
+    var isOpen: Bool { status != .resolved }
 
     var resolutionTime: TimeInterval? {
         guard let resolved = resolvedAt else { return nil }
@@ -141,34 +136,37 @@ final class Incident {
         guard let seconds = resolutionTime else { return nil }
         let hours   = Int(seconds) / 3600
         let minutes = (Int(seconds) % 3600) / 60
-        if hours > 0 { return "\(hours)h \(minutes)min" }
-        return "\(minutes)min"
+        return hours > 0 ? "\(hours)h \(minutes)min" : "\(minutes)min"
     }
 
-    var isOpen: Bool          { status != .resolved }
-    var shortTermActions: [ActionItem] { actionItems.filter { !$0.isLongTerm }.sorted { !$0.isCompleted && $1.isCompleted } }
-    var longTermActions:  [ActionItem] { actionItems.filter {  $0.isLongTerm }.sorted { !$0.isCompleted && $1.isCompleted } }
-    var sortedTimeline:   [TimelineEvent] { timeline.sorted { $0.order < $1.order } }
+    var sortedUpdates: [TimelineUpdate] {
+        updates.sorted { $0.order < $1.order }
+    }
+
+    var shortTermActions: [ActionItem] { actionItems.filter { !$0.isLongTerm } }
+    var longTermActions:  [ActionItem] { actionItems.filter {  $0.isLongTerm } }
+
+    var isPostmortemComplete: Bool {
+        !rootCause.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !lessonsLearned.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !actionItems.isEmpty
+    }
 
     // MARK: - Actions
 
-    func resolve() {
+    func addUpdate(text: String) {
+        let update = TimelineUpdate(text: text, order: updates.count)
+        updates.append(update)
+        if status == .open { status = .inProgress }
+    }
+
+    func close() {
         status     = .resolved
         resolvedAt = Date()
-        addTimelineEvent(label: "Resolvido", timestamp: Date(), order: timeline.count)
     }
 
     func reopen() {
         status     = .open
         resolvedAt = nil
-    }
-
-    func addTimelineEvent(label: String, timestamp: Date = Date(), order: Int? = nil) {
-        let event = TimelineEvent(
-            label: label,
-            timestamp: timestamp,
-            order: order ?? timeline.count
-        )
-        timeline.append(event)
     }
 }

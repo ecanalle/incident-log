@@ -12,6 +12,7 @@ struct HomeView: View {
     @State private var showingNewIncident = false
 
     var body: some View {
+        let _ = print("📦 incidents count: \(incidents.count)")
         @Bindable var vm = vm
 
         NavigationStack {
@@ -118,6 +119,6 @@ struct HomeView: View {
 
     // MARK: - Helpers
 
-    private var filteredIncidents: [Incident] { vm.filtered(incidents) }
+    private var filteredIncidents: [Incident] { incidents }
     private var allTags: [String]             { vm.allTags(from: incidents) }
 }
